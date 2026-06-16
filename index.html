@@ -147,24 +147,6 @@
             </div>
         </div>
 
-        <div class="card" style="margin-bottom: 2rem;">
-            <h2 class="card-title" id="title-table">Detalle por Marca</h2>
-            <table id="brandsTable" class="display" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>Marca</th>
-                        <th>Inv. 2025 (FY)</th>
-                        <th>Inv. 2026 (FY)</th>
-                        <th>Var. FY</th>
-                        <th>Inv. 2025 (YTD)</th>
-                        <th>Inv. 2026 (YTD)</th>
-                        <th>Var. YTD</th>
-                    </tr>
-                </thead>
-                <tbody id="table-body"></tbody>
-            </table>
-        </div>
-
         <div class="grid-3" style="grid-template-columns: 1fr 1fr; margin-bottom: 3rem;">
             <div class="card">
                 <div class="card-header-flex">
@@ -186,6 +168,24 @@
                 </div>
                 <div class="chart-container"><canvas id="categoryChart"></canvas></div>
             </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 2rem;">
+            <h2 class="card-title" id="title-table">Detalle por Marca</h2>
+            <table id="brandsTable" class="display" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>Marca</th>
+                        <th>Inv. 2025 (FY)</th>
+                        <th>Inv. 2026 (FY)</th>
+                        <th>Var. FY</th>
+                        <th>Inv. 2025 (YTD)</th>
+                        <th>Inv. 2026 (YTD)</th>
+                        <th>Var. YTD</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body"></tbody>
+            </table>
         </div>
     </div>
 
@@ -379,12 +379,12 @@
                 table_html += `
                 <tr>
                     <td>${m.nombre}</td>
-                    <td data-sort="${m.y25}">${formatMoney(m.y25)}</td>
-                    <td data-sort="${m.y26}">${formatMoney(m.y26)}</td>
-                    <td data-sort="${m_var_fy}">${formatVarTable(m_var_fy, m.y25)}</td>
-                    <td data-sort="${m.y25_ytd}">${formatMoney(m.y25_ytd)}</td>
-                    <td data-sort="${m.y26_ytd}">${formatMoney(m.y26_ytd)}</td>
-                    <td data-sort="${m_var_ytd}">${formatVarTable(m_var_ytd, m.y25_ytd)}</td>
+                    <td data-order="${m.y25}">${formatMoney(m.y25)}</td>
+                    <td data-order="${m.y26}">${formatMoney(m.y26)}</td>
+                    <td data-order="${m_var_fy}">${formatVarTable(m_var_fy, m.y25)}</td>
+                    <td data-order="${m.y25_ytd}">${formatMoney(m.y25_ytd)}</td>
+                    <td data-order="${m.y26_ytd}">${formatMoney(m.y26_ytd)}</td>
+                    <td data-order="${m_var_ytd}">${formatVarTable(m_var_ytd, m.y25_ytd)}</td>
                 </tr>`;
             });
 
@@ -428,9 +428,44 @@
             dataStore.brands.FY = [ top_15_marcas.map(m=>m.y25), top_15_marcas.map(m=>m.y26) ];
             dataStore.brands.YTD = [ top_15_marcas.map(m=>m.y25_ytd), top_15_marcas.map(m=>m.y26_ytd) ];
 
+            dataStore.brands.FY_labels = top_15_marcas.map(m => {
+                let pct = m.y25 > 0 ? ((m.y26 / m.y25) - 1) * 100 : (m.y26 > 0 ? 100 : 0);
+                let sign = pct > 0 ? '+' : '';
+                return `${m.nombre} (${sign}${pct.toFixed(1)}%)`;
+            });
+            dataStore.brands.YTD_labels = top_15_marcas.map(m => {
+                let pct = m.y25_ytd > 0 ? ((m.y26_ytd / m.y25_ytd) - 1) * 100 : (m.y26_ytd > 0 ? 100 : 0);
+                let sign = pct > 0 ? '+' : '';
+                return `${m.nombre} (${sign}${pct.toFixed(1)}%)`;
+            });
+
             let gruposKeys = ['Tecno', 'Electro', 'Nuevas Categorías'];
             dataStore.cats.FY = [ gruposKeys.map(g => gruposMap[g].y25), gruposKeys.map(g => gruposMap[g].y26) ];
             dataStore.cats.YTD = [ gruposKeys.map(g => gruposMap[g].y25_ytd), gruposKeys.map(g => gruposMap[g].y26_ytd) ];
+
+            dataStore.cats.FY_labels = gruposKeys.map((g, i) => {
+                let y25 = dataStore.cats.FY[0][i];
+                let y26 = dataStore.cats.FY[1][i];
+                let pct = y25 > 0 ? ((y26 / y25) - 1) * 100 : (y26 > 0 ? 100 : 0);
+                let sign = pct > 0 ? '+' : '';
+                return `${g} (${sign}${pct.toFixed(1)}%)`;
+            });
+
+            dataStore.cats.YTD_labels = gruposKeys.map((g, i) => {
+                let y25 = dataStore.cats.YTD[0][i];
+                let y26 = dataStore.cats.YTD[1][i];
+                let pct = y25 > 0 ? ((y26 / y25) - 1) * 100 : (y26 > 0 ? 100 : 0);
+                let sign = pct > 0 ? '+' : '';
+                return `${g} (${sign}${pct.toFixed(1)}%)`;
+            });
+
+            // Color callback para los ticks del eje Y
+            const tickColorCallback = function(context) {
+                let label = context.tick.label || '';
+                if (label.includes('(+') || label.includes('(100')) return '#10B981'; // Verde positivo
+                if (label.includes('(-')) return '#EF4444'; // Rojo negativo
+                return '#94A3B8'; // Neutral
+            };
 
             // DIBUJAR GRÁFICOS
             // 1. Mensual
@@ -458,31 +493,32 @@
             brandsChart = new Chart(document.getElementById('brandsChart').getContext('2d'), {
                 type: 'bar',
                 data: { 
-                    labels: top_15_marcas.map(m=>m.nombre), 
+                    labels: dataStore.brands.FY_labels, 
                     datasets: [
                         { label: 'Inv. 2025 (FY)', data: dataStore.brands.FY[0], backgroundColor: '#94A3B8', borderRadius: 4 },
                         { label: 'Inv. 2026 (FY)', data: dataStore.brands.FY[1], backgroundColor: '#10B981', borderRadius: 4 }
                     ] 
                 },
-                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.x) } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94A3B8', callback: formatAxis } }, y: { grid: { display: false }, ticks: { color: '#F8FAFC' } } } }
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.x) } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94A3B8', callback: formatAxis } }, y: { grid: { display: false }, ticks: { color: tickColorCallback, font: { size: 11 } } } } }
             });
 
             // 4. Categorías
             categoryChart = new Chart(document.getElementById('categoryChart').getContext('2d'), {
                 type: 'bar',
                 data: { 
-                    labels: gruposKeys, 
+                    labels: dataStore.cats.FY_labels, 
                     datasets: [
                         { label: 'Inv. 2025 (FY)', data: dataStore.cats.FY[0], backgroundColor: '#94A3B8', borderRadius: 4 },
                         { label: 'Inv. 2026 (FY)', data: dataStore.cats.FY[1], backgroundColor: '#F59E0B', borderRadius: 4 }
                     ] 
                 },
-                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.x) } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94A3B8', callback: formatAxis } }, y: { grid: { display: false }, ticks: { color: '#F8FAFC' } } } }
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.x) } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94A3B8', callback: formatAxis } }, y: { grid: { display: false }, ticks: { color: tickColorCallback, font: { size: 12 } } } } }
             });
 
             // Initialize DataTable
             $('#brandsTable').DataTable({ 
                 "order": [[ 2, "desc" ]], 
+                "paging": false,
                 "language": { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" }
             });
 
@@ -494,6 +530,7 @@
         window.toggleBrands = function(type, btn) {
             $(btn).siblings().removeClass('active');
             $(btn).addClass('active');
+            brandsChart.data.labels = dataStore.brands[type + '_labels'];
             brandsChart.data.datasets[0].data = dataStore.brands[type][0];
             brandsChart.data.datasets[1].data = dataStore.brands[type][1];
             brandsChart.data.datasets[0].label = 'Inv. 2025 (' + type + ')';
@@ -504,6 +541,7 @@
         window.toggleCats = function(type, btn) {
             $(btn).siblings().removeClass('active');
             $(btn).addClass('active');
+            categoryChart.data.labels = dataStore.cats[type + '_labels'];
             categoryChart.data.datasets[0].data = dataStore.cats[type][0];
             categoryChart.data.datasets[1].data = dataStore.cats[type][1];
             categoryChart.data.datasets[0].label = 'Inv. 2025 (' + type + ')';
