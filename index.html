@@ -171,7 +171,15 @@
         </div>
 
         <div class="card" style="margin-bottom: 2rem;">
-            <h2 class="card-title" id="title-table">Detalle por Marca</h2>
+            <div class="card-header-flex">
+                <h2 class="card-title" id="title-table">Detalle por Marca</h2>
+                <div class="toggle-btns">
+                    <button class="active" id="btnFilterTodas" onclick="filterTable('Todas', this)">Todas</button>
+                    <button onclick="filterTable('Tecno', this)">Tecno</button>
+                    <button onclick="filterTable('Electro', this)">Electro</button>
+                    <button onclick="filterTable('Nuevas Categorías', this)">Nuevas Cat.</button>
+                </div>
+            </div>
             <table id="brandsTable" class="display" style="width:100%">
                 <thead>
                     <tr>
@@ -274,6 +282,7 @@
             };
 
             // Recorrer el formato JSON de rows
+            window.validRows = [];
             rows.forEach(r => {
                 const getVal = (idx) => (r.c[idx] && r.c[idx].v !== null) ? r.c[idx].v : '';
                 
@@ -321,6 +330,7 @@
                     let g = t[0]; let val = t[1];
                     if (anio === 2025) { gruposMap[g].y25 += val; if(isYTD) gruposMap[g].y25_ytd += val; }
                     if (anio === 2026) { gruposMap[g].y26 += val; if(isYTD) gruposMap[g].y26_ytd += val; }
+                    window.validRows.push({ marca: marca, anio: anio, inv: val, isYTD: isYTD, grupo: g });
                 });
             });
 
@@ -359,52 +369,25 @@
             let churn_brands = [];
             let new_brands = [];
             let table_html = '';
-
-            const formatVarTable = (v, y25) => {
-                if (v >= 100 && y25 === 0) return "<span style='color: #10B981;'>100.0% (Nueva)</span>";
-                if (v > 0) return `<span style='color: #10B981;'>+${v.toFixed(1)}%</span>`;
-                if (v < 0) return `<span style='color: #EF4444;'>${v.toFixed(1)}%</span>`;
-                return "<span style='color: #94A3B8;'>0.0%</span>";
-            };
-
             marcasArray.forEach(m => {
-                let m_var_fy = m.y25 === 0 && m.y26 > 0 ? 100 : (m.y25 > 0 ? (m.y26/m.y25 - 1)*100 : 0);
-                let m_var_ytd = m.y25_ytd === 0 && m.y26_ytd > 0 ? 100 : (m.y25_ytd > 0 ? (m.y26_ytd/m.y25_ytd - 1)*100 : 0);
-
                 if (m.y25_ytd > 0 && m.y26_ytd === 0) churn_brands.push({nombre: m.nombre, val: m.y25_ytd});
                 if (m.y25_ytd === 0 && m.y26_ytd > 0) new_brands.push({nombre: m.nombre, val: m.y26_ytd});
-
-                if(m.y25 === 0 && m.y26 === 0) return;
-
-                table_html += `
-                <tr>
-                    <td>${m.nombre}</td>
-                    <td data-order="${m.y25}">${formatMoney(m.y25)}</td>
-                    <td data-order="${m.y26}">${formatMoney(m.y26)}</td>
-                    <td data-order="${m_var_fy}">${formatVarTable(m_var_fy, m.y25)}</td>
-                    <td data-order="${m.y25_ytd}">${formatMoney(m.y25_ytd)}</td>
-                    <td data-order="${m.y26_ytd}">${formatMoney(m.y26_ytd)}</td>
-                    <td data-order="${m_var_ytd}">${formatVarTable(m_var_ytd, m.y25_ytd)}</td>
-                </tr>`;
             });
 
-            $('#table-body').html(table_html);
-            $('#title-table').text(`Detalle por Marca (FY y YTD ${rango_ytd_str})`);
+            let fy_var = inv_2025_fy > 0 ? ((inv_2026_fy / inv_2025_fy) - 1) * 100 : 100;
+            let ytd_var = inv_2025_ytd > 0 ? ((inv_2026_ytd / inv_2025_ytd) - 1) * 100 : 100;
 
-            // Sort Churn & New
+            $('#title-table').text(`Detalle por Marca (FY y YTD ${rango_ytd_str})`);
+            $('#kpi-ytd').html(formatMoney(inv_2026_ytd) + ` <span class="var ${ytd_var >= 0 ? 'positive' : 'negative'}">${ytd_var >= 0 ? '▲' : '▼'} ${Math.abs(ytd_var).toFixed(1)}% vs ${inv_2025_ytd===0 ? '0' : formatMoney(inv_2025_ytd)}</span>`);
+            $('#kpi-fy').html(formatMoney(inv_2026_fy) + ` <span class="var ${fy_var >= 0 ? 'positive' : 'negative'}">${fy_var >= 0 ? '▲' : '▼'} ${Math.abs(fy_var).toFixed(1)}% vs ${formatMoney(inv_2025_fy)}</span>`);
+
             churn_brands.sort((a,b) => b.val - a.val);
             new_brands.sort((a,b) => b.val - a.val);
 
-            let total_perdida = churn_brands.reduce((s, m) => s + m.val, 0);
-            let total_ganancia = new_brands.reduce((s, m) => s + m.val, 0);
-
             $('#title-churn').text(`⚠️ Fuga de Marcas (Churn YTD ${rango_ytd_str})`);
-            $('#val-churn').text(formatMoney(total_perdida));
-            $('#val-churn-pct').text(`Representa el ${(inv_2025_ytd>0 ? total_perdida/inv_2025_ytd*100 : 0).toFixed(1)}% del YTD 2025`);
-            
+            $('#val-churn').text(formatMoney(churn_brands.reduce((s, m) => s + m.val, 0)));
             $('#title-new').text(`🚀 Nuevas Marcas (Adquisición YTD ${rango_ytd_str})`);
-            $('#val-new').text(formatMoney(total_ganancia));
-            $('#val-new-pct').text(`Representa el ${(inv_2026_ytd>0 ? total_ganancia/inv_2026_ytd*100 : 0).toFixed(1)}% del YTD 2026`);
+            $('#val-new').text(formatMoney(new_brands.reduce((s, m) => s + m.val, 0)));
 
             const buildList = (arr) => {
                 if(!arr.length) return "<p style='color: var(--text-muted); padding: 1rem 0;'>No hay datos.</p>";
@@ -421,111 +404,86 @@
             $('#list-churn').html(buildList(churn_brands));
             $('#list-new').html(buildList(new_brands));
 
-            // Top 15 Marcas para Graficos (ordenado por total historico o 2026)
             marcasArray.sort((a,b) => (b.y25+b.y26) - (a.y25+a.y26));
             let top_15_marcas = marcasArray.slice(0, 15);
-
             dataStore.brands.FY = [ top_15_marcas.map(m=>m.y25), top_15_marcas.map(m=>m.y26) ];
             dataStore.brands.YTD = [ top_15_marcas.map(m=>m.y25_ytd), top_15_marcas.map(m=>m.y26_ytd) ];
-
-            dataStore.brands.FY_labels = top_15_marcas.map(m => {
-                let pct = m.y25 > 0 ? ((m.y26 / m.y25) - 1) * 100 : (m.y26 > 0 ? 100 : 0);
-                let sign = pct > 0 ? '+' : '';
-                return `${m.nombre} (${sign}${pct.toFixed(1)}%)`;
-            });
-            dataStore.brands.YTD_labels = top_15_marcas.map(m => {
-                let pct = m.y25_ytd > 0 ? ((m.y26_ytd / m.y25_ytd) - 1) * 100 : (m.y26_ytd > 0 ? 100 : 0);
-                let sign = pct > 0 ? '+' : '';
-                return `${m.nombre} (${sign}${pct.toFixed(1)}%)`;
-            });
+            dataStore.brands.FY_labels = top_15_marcas.map(m => `${m.nombre} (${m.y25 > 0 ? ((m.y26 / m.y25) - 1 > 0 ? '+' : '') + ((m.y26 / m.y25 - 1) * 100).toFixed(1) : (m.y26 > 0 ? '100' : '0')}%)`);
+            dataStore.brands.YTD_labels = top_15_marcas.map(m => `${m.nombre} (${m.y25_ytd > 0 ? ((m.y26_ytd / m.y25_ytd) - 1 > 0 ? '+' : '') + ((m.y26_ytd / m.y25_ytd - 1) * 100).toFixed(1) : (m.y26_ytd > 0 ? '100' : '0')}%)`);
 
             let gruposKeys = ['Tecno', 'Electro', 'Nuevas Categorías'];
             dataStore.cats.FY = [ gruposKeys.map(g => gruposMap[g].y25), gruposKeys.map(g => gruposMap[g].y26) ];
             dataStore.cats.YTD = [ gruposKeys.map(g => gruposMap[g].y25_ytd), gruposKeys.map(g => gruposMap[g].y26_ytd) ];
+            dataStore.cats.FY_labels = gruposKeys.map((g, i) => `${g} (${dataStore.cats.FY[0][i] > 0 ? ((dataStore.cats.FY[1][i] / dataStore.cats.FY[0][i]) - 1 > 0 ? '+' : '') + ((dataStore.cats.FY[1][i] / dataStore.cats.FY[0][i] - 1) * 100).toFixed(1) : (dataStore.cats.FY[1][i] > 0 ? '100' : '0')}%)`);
+            dataStore.cats.YTD_labels = gruposKeys.map((g, i) => `${g} (${dataStore.cats.YTD[0][i] > 0 ? ((dataStore.cats.YTD[1][i] / dataStore.cats.YTD[0][i]) - 1 > 0 ? '+' : '') + ((dataStore.cats.YTD[1][i] / dataStore.cats.YTD[0][i] - 1) * 100).toFixed(1) : (dataStore.cats.YTD[1][i] > 0 ? '100' : '0')}%)`);
 
-            dataStore.cats.FY_labels = gruposKeys.map((g, i) => {
-                let y25 = dataStore.cats.FY[0][i];
-                let y26 = dataStore.cats.FY[1][i];
-                let pct = y25 > 0 ? ((y26 / y25) - 1) * 100 : (y26 > 0 ? 100 : 0);
-                let sign = pct > 0 ? '+' : '';
-                return `${g} (${sign}${pct.toFixed(1)}%)`;
-            });
-
-            dataStore.cats.YTD_labels = gruposKeys.map((g, i) => {
-                let y25 = dataStore.cats.YTD[0][i];
-                let y26 = dataStore.cats.YTD[1][i];
-                let pct = y25 > 0 ? ((y26 / y25) - 1) * 100 : (y26 > 0 ? 100 : 0);
-                let sign = pct > 0 ? '+' : '';
-                return `${g} (${sign}${pct.toFixed(1)}%)`;
-            });
-
-            // Color callback para los ticks del eje Y
             const tickColorCallback = function(context) {
                 let label = context.tick.label || '';
-                if (label.includes('(+') || label.includes('(100')) return '#10B981'; // Verde positivo
-                if (label.includes('(-')) return '#EF4444'; // Rojo negativo
-                return '#94A3B8'; // Neutral
+                if (label.includes('(+') || label.includes('(100')) return '#10B981';
+                if (label.includes('(-')) return '#EF4444';
+                return '#94A3B8';
             };
 
-            // DIBUJAR GRÁFICOS
-            // 1. Mensual
-            new Chart(document.getElementById('yearChart').getContext('2d'), {
-                type: 'line',
-                data: { 
-                    labels: nombresMesesAbrev, 
-                    datasets: [
-                        { label: '2025', data: inv_mensual_2025, borderColor: '#94A3B8', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], tension: 0.4, pointBackgroundColor: '#94A3B8', pointRadius: 4 },
-                        { label: '2026', data: inv_mensual_2026, borderColor: '#818CF8', backgroundColor: 'rgba(129, 140, 248, 0.2)', borderWidth: 3, fill: true, tension: 0.4, pointBackgroundColor: '#C084FC', pointRadius: 5 }
-                    ] 
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.y) } } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94A3B8', callback: formatAxis } }, x: { grid: { display: false }, ticks: { color: '#94A3B8' } } } }
+            const tickColorCallbackX = function(context) {
+                let label = context.tick.label || '';
+                if (Array.isArray(label)) label = label.join(' ');
+                if (label.includes('(+') || label.includes('(100')) return '#10B981';
+                if (label.includes('(-')) return '#EF4444';
+                return '#94A3B8';
+            };
+
+            let meses_yoy_labels = nombresMesesAbrev.map((m, i) => {
+                let val25 = inv_mensual_2025[i];
+                let val26 = inv_mensual_2026[i];
+                if (val25 === 0 && val26 === 0) return m;
+                if (val26 === 0 && (i + 1 > mes_maximo_ytd)) return m;
+                
+                let pct = 0;
+                let sign = '';
+                if (val25 > 0) {
+                    pct = ((val26 / val25) - 1) * 100;
+                    sign = pct > 0 ? '+' : '';
+                    return [m, `(${sign}${pct.toFixed(1)}%)`];
+                } else if (val26 > 0 && val25 === 0) {
+                    return [m, `(+100.0%)`];
+                }
+                return m;
             });
 
-            // 2. Pareto
-            const paretoColors = ['#818CF8', '#C084FC', '#F472B6', '#34D399', '#FBBF24', '#475569'];
+            new Chart(document.getElementById('yearChart').getContext('2d'), {
+                type: 'line',
+                data: { labels: meses_yoy_labels, datasets: [
+                    { label: '2025', data: inv_mensual_2025, borderColor: '#94A3B8', borderDash: [5, 5], tension: 0.4 },
+                    { label: '2026', data: inv_mensual_2026, borderColor: '#818CF8', backgroundColor: 'rgba(129, 140, 248, 0.2)', fill: true, tension: 0.4 }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.y) } } }, scales: { x: { ticks: { color: tickColorCallbackX, font: { size: 11 } } }, y: { ticks: { callback: formatAxis } } } }
+            });
+
             new Chart(document.getElementById('paretoChart').getContext('2d'), {
                 type: 'doughnut',
-                data: { labels: pareto_labels, datasets: [{ data: pareto_data, backgroundColor: paretoColors, borderWidth: 0 }] },
+                data: { labels: top_5_pareto.map(m => m.nombre).concat(['Resto']), datasets: [{ data: top_5_pareto.map(m => m.y26).concat([inv_2026_fy - top_5_sum]), backgroundColor: ['#818CF8', '#C084FC', '#F472B6', '#34D399', '#FBBF24', '#475569'] }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94A3B8', padding: 20 } }, tooltip: { callbacks: { label: (ctx) => ' ' + formatMoney(ctx.parsed) } } }, cutout: '65%' }
             });
 
-            // 3. Brands
             brandsChart = new Chart(document.getElementById('brandsChart').getContext('2d'), {
                 type: 'bar',
-                data: { 
-                    labels: dataStore.brands.FY_labels, 
-                    datasets: [
-                        { label: 'Inv. 2025 (FY)', data: dataStore.brands.FY[0], backgroundColor: '#94A3B8', borderRadius: 4 },
-                        { label: 'Inv. 2026 (FY)', data: dataStore.brands.FY[1], backgroundColor: '#10B981', borderRadius: 4 }
-                    ] 
-                },
-                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.x) } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94A3B8', callback: formatAxis } }, y: { grid: { display: false }, ticks: { color: tickColorCallback, font: { size: 11 } } } } }
+                data: { labels: dataStore.brands.FY_labels, datasets: [
+                    { label: 'Inv. 2025 (FY)', data: dataStore.brands.FY[0], backgroundColor: '#94A3B8', borderRadius: 4 },
+                    { label: 'Inv. 2026 (FY)', data: dataStore.brands.FY[1], backgroundColor: '#10B981', borderRadius: 4 }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.x) } } }, scales: { x: { ticks: { callback: formatAxis } }, y: { ticks: { color: tickColorCallback } } } }
             });
 
-            // 4. Categorías
             categoryChart = new Chart(document.getElementById('categoryChart').getContext('2d'), {
                 type: 'bar',
-                data: { 
-                    labels: dataStore.cats.FY_labels, 
-                    datasets: [
-                        { label: 'Inv. 2025 (FY)', data: dataStore.cats.FY[0], backgroundColor: '#94A3B8', borderRadius: 4 },
-                        { label: 'Inv. 2026 (FY)', data: dataStore.cats.FY[1], backgroundColor: '#F59E0B', borderRadius: 4 }
-                    ] 
-                },
-                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.x) } } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94A3B8', callback: formatAxis } }, y: { grid: { display: false }, ticks: { color: tickColorCallback, font: { size: 12 } } } } }
+                data: { labels: dataStore.cats.FY_labels, datasets: [
+                    { label: 'Inv. 2025 (FY)', data: dataStore.cats.FY[0], backgroundColor: '#94A3B8', borderRadius: 4 },
+                    { label: 'Inv. 2026 (FY)', data: dataStore.cats.FY[1], backgroundColor: '#F59E0B', borderRadius: 4 }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: true, labels: { color: '#F8FAFC' } }, tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatMoney(ctx.parsed.x) } } }, scales: { x: { ticks: { callback: formatAxis } }, y: { ticks: { color: tickColorCallback } } } }
             });
 
-            // Initialize DataTable
-            $('#brandsTable').DataTable({ 
-                "order": [[ 2, "desc" ]], 
-                "paging": false,
-                "columnDefs": [
-                    { "type": "num", "targets": [1, 2, 3, 4, 5, 6] }
-                ],
-                "language": { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" }
-            });
-
-            // Finalizar carga
+            filterTable('Todas', document.getElementById('btnFilterTodas'));
             $('#loading').fadeOut();
             $('#main-container').fadeIn();
         }
@@ -550,6 +508,63 @@
             categoryChart.data.datasets[0].label = 'Inv. 2025 (' + type + ')';
             categoryChart.data.datasets[1].label = 'Inv. 2026 (' + type + ')';
             categoryChart.update();
+        };
+
+        const formatVarTable = (v, y25) => {
+            if (v >= 100 && y25 === 0) return "<span style='color: #10B981;'>100.0% (Nueva)</span>";
+            if (v > 0) return `<span style='color: #10B981;'>+${v.toFixed(1)}%</span>`;
+            if (v < 0) return `<span style='color: #EF4444;'>${v.toFixed(1)}%</span>`;
+            return "<span style='color: #94A3B8;'>0.0%</span>";
+        };
+
+        window.filterTable = function(group, btn) {
+            if (btn) {
+                $(btn).siblings().removeClass('active');
+                $(btn).addClass('active');
+            }
+
+            let localMarcasMap = {};
+            window.validRows.forEach(r => {
+                if (group !== 'Todas' && r.grupo !== group) return;
+                
+                if (!localMarcasMap[r.marca]) localMarcasMap[r.marca] = { y25:0, y26:0, y25_ytd:0, y26_ytd:0 };
+                if (r.anio === 2025) { localMarcasMap[r.marca].y25 += r.inv; if(r.isYTD) localMarcasMap[r.marca].y25_ytd += r.inv; }
+                if (r.anio === 2026) { localMarcasMap[r.marca].y26 += r.inv; if(r.isYTD) localMarcasMap[r.marca].y26_ytd += r.inv; }
+            });
+
+            let marcasArray = Object.keys(localMarcasMap).map(k => {
+                return { nombre: k, ...localMarcasMap[k] };
+            });
+
+            let table_html = '';
+            marcasArray.forEach(m => {
+                let m_var_fy = m.y25 === 0 && m.y26 > 0 ? 100 : (m.y25 > 0 ? (m.y26/m.y25 - 1)*100 : 0);
+                let m_var_ytd = m.y25_ytd === 0 && m.y26_ytd > 0 ? 100 : (m.y25_ytd > 0 ? (m.y26_ytd/m.y25_ytd - 1)*100 : 0);
+                if(m.y25 === 0 && m.y26 === 0) return;
+
+                table_html += `
+                <tr>
+                    <td>${m.nombre}</td>
+                    <td data-order="${m.y25}">${formatMoney(m.y25)}</td>
+                    <td data-order="${m.y26}">${formatMoney(m.y26)}</td>
+                    <td data-order="${m_var_fy}">${formatVarTable(m_var_fy, m.y25)}</td>
+                    <td data-order="${m.y25_ytd}">${formatMoney(m.y25_ytd)}</td>
+                    <td data-order="${m.y26_ytd}">${formatMoney(m.y26_ytd)}</td>
+                    <td data-order="${m_var_ytd}">${formatVarTable(m_var_ytd, m.y25_ytd)}</td>
+                </tr>`;
+            });
+
+            if ($.fn.DataTable.isDataTable('#brandsTable')) {
+                $('#brandsTable').DataTable().destroy();
+            }
+
+            $('#table-body').html(table_html);
+            $('#brandsTable').DataTable({ 
+                "order": [[ 2, "desc" ]], 
+                "paging": false,
+                "columnDefs": [ { "type": "num", "targets": [1, 2, 3, 4, 5, 6] } ],
+                "language": { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" }
+            });
         };
     </script>
 </body>
